@@ -6,12 +6,15 @@ import {
   ScrollView,
   TextInput,
   Animated,
+  Alert,
+  ActivityIndicator,
   ImageSourcePropType,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { MapPin, Plus, Search } from 'lucide-react-native';
+import { MapPin, Plus, Search, Navigation } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { StarRating } from '@/components/StarRating';
 import { CategoryBadge } from '@/components/CategoryBadge';
@@ -24,6 +27,16 @@ function resolveImageSource(source: string | number | ImageSourcePropType | unde
   if (!source) return { uri: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400' };
   if (typeof source === 'string') return { uri: source };
   return source as ImageSourcePropType;
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function AnimatedListItem({ index, children }: { index: number; children: React.ReactNode }) {
@@ -53,6 +66,9 @@ export default function EsploraScreen() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nearMe, setNearMe] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const loadPlaces = useCallback(async (category: string, search: string) => {
     console.log('[Esplora] loadPlaces', { category, search });
@@ -90,6 +106,47 @@ export default function EsploraScreen() {
     console.log('[Esplora] aggiungi luogo premuto');
     router.push('/add-place');
   };
+
+  const handleNearMeToggle = async () => {
+    if (nearMe) {
+      console.log('[Esplora] "Vicino a me" disattivato');
+      setNearMe(false);
+      setUserLocation(null);
+      return;
+    }
+    console.log('[Esplora] "Vicino a me" attivato — richiesta posizione');
+    setLocationLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Posizione non disponibile',
+          'Abilita la posizione nelle impostazioni per trovare luoghi vicini a te.'
+        );
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      console.log('[Esplora] posizione ottenuta:', loc.coords.latitude, loc.coords.longitude);
+      setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      setNearMe(true);
+    } catch (e) {
+      console.error('[Esplora] errore posizione', e);
+      Alert.alert('Errore', 'Impossibile ottenere la posizione.');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const displayedPlaces = nearMe && userLocation
+    ? places.filter((p) =>
+        haversineKm(
+          userLocation.latitude,
+          userLocation.longitude,
+          Number(p.latitude),
+          Number(p.longitude)
+        ) <= 30
+      )
+    : places;
 
   const ratingDisplay = (place: Place) => {
     const r = Number(place.avg_rating);
@@ -189,9 +246,26 @@ export default function EsploraScreen() {
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <AnimatedPressable onPress={() => { console.log('[Esplora] ricerca cancellata'); setSearchQuery(''); }} scaleValue={0.9}>
-              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: COLORS.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 12, color: COLORS.textSecondary, lineHeight: 20, textAlign: 'center' }}>✕</Text>
+            <AnimatedPressable
+              onPress={() => {
+                console.log('[Esplora] ricerca cancellata');
+                setSearchQuery('');
+              }}
+              scaleValue={0.9}
+            >
+              <View
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: COLORS.surfaceSecondary,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 12, color: COLORS.textSecondary, lineHeight: 20, textAlign: 'center' }}>
+                  ✕
+                </Text>
               </View>
             </AnimatedPressable>
           )}
@@ -231,7 +305,14 @@ export default function EsploraScreen() {
             <Text style={{ fontSize: 15, fontFamily: 'Nunito_700Bold', color: '#FFFFFF' }}>
               Conosci un posto speciale?
             </Text>
-            <Text style={{ fontSize: 13, fontFamily: 'Nunito_400Regular', color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: 'Nunito_400Regular',
+                color: 'rgba(255,255,255,0.85)',
+                marginTop: 2,
+              }}
+            >
               Aggiungilo alla mappa per le altre famiglie
             </Text>
           </View>
@@ -241,7 +322,7 @@ export default function EsploraScreen() {
       {/* Divider */}
       <View style={{ height: 1, backgroundColor: COLORS.divider, marginHorizontal: 16 }} />
 
-      {/* Category chips */}
+      {/* Category chips + "Vicino a me" */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -267,15 +348,63 @@ export default function EsploraScreen() {
                 }}
               >
                 {cat !== 'tutti' && (
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isSelected ? 'rgba(255,255,255,0.8)' : catColor }} />
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: isSelected ? 'rgba(255,255,255,0.8)' : catColor,
+                    }}
+                  />
                 )}
-                <Text style={{ fontSize: 13, fontWeight: '600', fontFamily: 'Nunito_600SemiBold', color: isSelected ? '#FFFFFF' : COLORS.text }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: '600',
+                    fontFamily: 'Nunito_600SemiBold',
+                    color: isSelected ? '#FFFFFF' : COLORS.text,
+                  }}
+                >
                   {CATEGORY_LABELS[cat]}
                 </Text>
               </View>
             </AnimatedPressable>
           );
         })}
+
+        {/* "Vicino a me" chip */}
+        <AnimatedPressable onPress={handleNearMeToggle} scaleValue={0.95}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              gap: 6,
+              backgroundColor: nearMe ? '#4A90D9' : COLORS.surface,
+              borderWidth: 1,
+              borderColor: nearMe ? '#4A90D9' : COLORS.border,
+              boxShadow: nearMe ? '0 2px 8px rgba(74,144,217,0.4)' : '0 1px 3px rgba(26,23,20,0.06)',
+            }}
+          >
+            {locationLoading ? (
+              <ActivityIndicator size="small" color={nearMe ? '#FFF' : '#4A90D9'} />
+            ) : (
+              <Navigation size={13} color={nearMe ? '#FFF' : '#4A90D9'} strokeWidth={2} />
+            )}
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: '600',
+                fontFamily: 'Nunito_600SemiBold',
+                color: nearMe ? '#FFFFFF' : COLORS.text,
+              }}
+            >
+              Vicino a me
+            </Text>
+          </View>
+        </AnimatedPressable>
       </ScrollView>
 
       {/* Divider before list */}
@@ -283,15 +412,37 @@ export default function EsploraScreen() {
     </View>
   );
 
+  const emptyMessage = nearMe
+    ? 'Nessun luogo trovato entro 30 km da te'
+    : 'Nessun luogo trovato';
+
   const EmptyState = (
     <View style={{ alignItems: 'center', paddingTop: 40, paddingHorizontal: 32, gap: 12 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: COLORS.primaryMuted, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 20,
+          backgroundColor: COLORS.primaryMuted,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <MapPin size={32} color={COLORS.primary} strokeWidth={1.5} />
       </View>
       <Text style={{ fontSize: 18, fontFamily: 'Nunito_700Bold', color: COLORS.text, textAlign: 'center' }}>
-        Nessun luogo trovato
+        {emptyMessage}
       </Text>
-      <Text style={{ fontSize: 14, fontFamily: 'Nunito_400Regular', color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 280 }}>
+      <Text
+        style={{
+          fontSize: 14,
+          fontFamily: 'Nunito_400Regular',
+          color: COLORS.textSecondary,
+          textAlign: 'center',
+          lineHeight: 20,
+          maxWidth: 280,
+        }}
+      >
         Cozy Corner ti aiuta a trovare ristoranti, parchi, musei e tanto altro, scelti e recensiti da genitori come te.
       </Text>
     </View>
@@ -314,14 +465,38 @@ export default function EsploraScreen() {
         {renderListHeader()}
         <View style={{ alignItems: 'center', padding: 32 }}>
           <MapPin size={40} color={COLORS.danger} strokeWidth={1.5} />
-          <Text style={{ fontSize: 17, fontFamily: 'Nunito_700Bold', color: COLORS.text, marginTop: 16, textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 17,
+              fontFamily: 'Nunito_700Bold',
+              color: COLORS.text,
+              marginTop: 16,
+              textAlign: 'center',
+            }}
+          >
             Impossibile caricare i luoghi
           </Text>
-          <Text style={{ fontSize: 14, fontFamily: 'Nunito_400Regular', color: COLORS.textSecondary, marginTop: 8, textAlign: 'center' }}>
+          <Text
+            style={{
+              fontSize: 14,
+              fontFamily: 'Nunito_400Regular',
+              color: COLORS.textSecondary,
+              marginTop: 8,
+              textAlign: 'center',
+            }}
+          >
             {error}
           </Text>
           <AnimatedPressable onPress={() => loadPlaces(selectedCategory, searchQuery)}>
-            <View style={{ marginTop: 20, backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}>
+            <View
+              style={{
+                marginTop: 20,
+                backgroundColor: COLORS.primary,
+                borderRadius: 12,
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+              }}
+            >
               <Text style={{ color: '#FFF', fontFamily: 'Nunito_700Bold', fontSize: 15 }}>Riprova</Text>
             </View>
           </AnimatedPressable>
@@ -332,7 +507,7 @@ export default function EsploraScreen() {
 
   return (
     <FlatList
-      data={places}
+      data={displayedPlaces}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
       ListHeaderComponent={renderListHeader}

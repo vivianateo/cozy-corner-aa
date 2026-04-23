@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   FlatList,
   ScrollView,
-  Pressable,
-  Animated,
+  Alert,
   ActivityIndicator,
   ImageSourcePropType,
 } from 'react-native';
@@ -13,7 +12,8 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { Plus, MapPin } from 'lucide-react-native';
+import { Plus, MapPin, Navigation } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { Map } from '@/components/Map';
 import type { MapMarker } from '@/components/Map';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
@@ -30,6 +30,16 @@ function resolveImageSource(source: string | number | ImageSourcePropType | unde
   return source as ImageSourcePropType;
 }
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 const ITALY_REGION = {
   latitude: 41.9,
   longitude: 12.5,
@@ -44,6 +54,9 @@ export default function MappaScreen() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nearMe, setNearMe] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const loadPlaces = useCallback(async (category: string) => {
     console.log('[Mappa] loadPlaces', { category });
@@ -79,13 +92,77 @@ export default function MappaScreen() {
     router.push('/add-place');
   };
 
-  const markers: MapMarker[] = places.map((p) => ({
+  const handleNearMeToggle = async () => {
+    if (nearMe) {
+      console.log('[Mappa] "Vicino a me" disattivato');
+      setNearMe(false);
+      setUserLocation(null);
+      return;
+    }
+    console.log('[Mappa] "Vicino a me" attivato — richiesta posizione');
+    setLocationLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Posizione non disponibile',
+          'Abilita la posizione nelle impostazioni per trovare luoghi vicini a te.'
+        );
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      console.log('[Mappa] posizione ottenuta:', loc.coords.latitude, loc.coords.longitude);
+      setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      setNearMe(true);
+    } catch (e) {
+      console.error('[Mappa] errore posizione', e);
+      Alert.alert('Errore', 'Impossibile ottenere la posizione.');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const displayedPlaces = nearMe && userLocation
+    ? places.filter((p) =>
+        haversineKm(
+          userLocation.latitude,
+          userLocation.longitude,
+          Number(p.latitude),
+          Number(p.longitude)
+        ) <= 30
+      )
+    : places;
+
+  const baseMarkers: MapMarker[] = displayedPlaces.map((p) => ({
     id: p.id,
     latitude: Number(p.latitude),
     longitude: Number(p.longitude),
     title: p.name,
     description: p.address,
   }));
+
+  const userMarker: MapMarker | null =
+    nearMe && userLocation
+      ? {
+          id: 'user',
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          title: 'Sei qui 📍',
+          description: 'La tua posizione',
+        }
+      : null;
+
+  const markers: MapMarker[] = userMarker ? [userMarker, ...baseMarkers] : baseMarkers;
+
+  const mapRegion =
+    nearMe && userLocation
+      ? {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: 0.3,
+          longitudeDelta: 0.3,
+        }
+      : ITALY_REGION;
 
   const ratingDisplay = (place: Place) => {
     const r = Number(place.avg_rating);
@@ -97,7 +174,7 @@ export default function MappaScreen() {
       {/* Full screen map */}
       <Map
         markers={markers}
-        initialRegion={ITALY_REGION}
+        initialRegion={mapRegion}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 }}
       />
 
@@ -125,13 +202,7 @@ export default function MappaScreen() {
                 onPress={() => handleCategoryPress(cat)}
                 scaleValue={0.95}
               >
-                <BlurView
-                  intensity={60}
-                  style={{
-                    borderRadius: 20,
-                    overflow: 'hidden',
-                  }}
-                >
+                <BlurView intensity={60} style={{ borderRadius: 20, overflow: 'hidden' }}>
                   <View
                     style={{
                       flexDirection: 'row',
@@ -139,9 +210,7 @@ export default function MappaScreen() {
                       paddingHorizontal: 14,
                       paddingVertical: 8,
                       gap: 6,
-                      backgroundColor: isSelected
-                        ? catColor
-                        : 'rgba(255,255,255,0.75)',
+                      backgroundColor: isSelected ? catColor : 'rgba(255,255,255,0.75)',
                     }}
                   >
                     {cat !== 'tutti' && (
@@ -169,6 +238,38 @@ export default function MappaScreen() {
               </AnimatedPressable>
             );
           })}
+
+          {/* "Vicino a me" chip */}
+          <AnimatedPressable onPress={handleNearMeToggle} scaleValue={0.95}>
+            <BlurView intensity={60} style={{ borderRadius: 20, overflow: 'hidden' }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  gap: 6,
+                  backgroundColor: nearMe ? '#4A90D9' : 'rgba(255,255,255,0.75)',
+                }}
+              >
+                {locationLoading ? (
+                  <ActivityIndicator size="small" color={nearMe ? '#FFF' : '#4A90D9'} />
+                ) : (
+                  <Navigation size={13} color={nearMe ? '#FFF' : '#4A90D9'} strokeWidth={2} />
+                )}
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: '600',
+                    fontFamily: 'Nunito_600SemiBold',
+                    color: nearMe ? '#FFFFFF' : COLORS.text,
+                  }}
+                >
+                  Vicino a me
+                </Text>
+              </View>
+            </BlurView>
+          </AnimatedPressable>
         </ScrollView>
       </View>
 
@@ -212,7 +313,7 @@ export default function MappaScreen() {
               </Text>
             </AnimatedPressable>
           </View>
-        ) : places.length === 0 ? (
+        ) : displayedPlaces.length === 0 ? (
           <View
             style={{
               marginHorizontal: 16,
@@ -230,15 +331,18 @@ export default function MappaScreen() {
                 fontFamily: 'Nunito_600SemiBold',
                 fontSize: 14,
                 marginTop: 8,
+                textAlign: 'center',
               }}
             >
-              Nessun luogo trovato in questa categoria
+              {nearMe
+                ? 'Nessun luogo trovato entro 30 km da te'
+                : 'Nessun luogo trovato in questa categoria'}
             </Text>
           </View>
         ) : (
           <FlatList
             horizontal
-            data={places}
+            data={displayedPlaces}
             keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
@@ -317,7 +421,7 @@ export default function MappaScreen() {
         )}
       </View>
 
-      {/* FAB + button */}
+      {/* FAB */}
       <AnimatedPressable
         onPress={handleAddPress}
         scaleValue={0.94}
