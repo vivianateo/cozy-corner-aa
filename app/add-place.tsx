@@ -13,7 +13,7 @@ import { CheckCircle, MapPin, X } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Map } from '@/components/Map';
 import type { MapMarker } from '@/components/Map';
-import { COLORS, CATEGORIES, CATEGORY_LABELS } from '@/constants/Colors';
+import { COLORS, CATEGORIES, CATEGORY_LABELS, AMENITIES, AMENITY_LABELS, AMENITY_ICONS } from '@/constants/Colors';
 import { createPlace } from '@/utils/api';
 
 const FORM_CATEGORIES = CATEGORIES.filter((c) => c !== 'tutti') as string[];
@@ -43,6 +43,7 @@ export default function AddPlaceScreen() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -97,6 +98,11 @@ export default function AddPlaceScreen() {
     if (errors.address) setErrors((p) => ({ ...p, address: undefined }));
   };
 
+  const toggleAmenity = (a: string) => {
+    console.log('[AddPlace] amenità toggled:', a);
+    setSelectedAmenities((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
+  };
+
   const handleCategorySelect = (cat: string) => {
     console.log('[AddPlace] categoria selezionata:', cat);
     setCategory(cat);
@@ -142,6 +148,7 @@ export default function AddPlaceScreen() {
         address: address.trim(),
         latitude: latitude || 0,
         longitude: longitude || 0,
+        amenities: selectedAmenities,
       });
       setSuccess(true);
       Animated.timing(successOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -293,6 +300,46 @@ export default function AddPlaceScreen() {
               {errors.category}
             </Text>
           ) : null}
+        </View>
+
+        {/* Amenities */}
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontSize: 13, fontFamily: 'Nunito_600SemiBold', color: COLORS.textSecondary }}>
+            Servizi disponibili
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {AMENITIES.map((a) => {
+              const isSelected = selectedAmenities.includes(a);
+              return (
+                <AnimatedPressable key={a} onPress={() => toggleAmenity(a)} scaleValue={0.95}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      gap: 6,
+                      backgroundColor: isSelected ? 'rgba(76,175,130,0.15)' : COLORS.surface,
+                      borderWidth: 1.5,
+                      borderColor: isSelected ? '#4CAF82' : COLORS.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 15 }}>{AMENITY_ICONS[a]}</Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontFamily: 'Nunito_600SemiBold',
+                        color: isSelected ? '#3A8F65' : COLORS.text,
+                      }}
+                    >
+                      {AMENITY_LABELS[a]}
+                    </Text>
+                  </View>
+                </AnimatedPressable>
+              );
+            })}
+          </View>
         </View>
 
         {/* Description */}

@@ -19,8 +19,9 @@ import type { MapMarker } from '@/components/Map';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { StarRating } from '@/components/StarRating';
 import { CategoryBadge } from '@/components/CategoryBadge';
+import { AmenityBadge } from '@/components/AmenityBadge';
 import { SkeletonPlaceCard } from '@/components/SkeletonCard';
-import { COLORS, CATEGORIES, CATEGORY_LABELS } from '@/constants/Colors';
+import { COLORS, CATEGORIES, CATEGORY_LABELS, AMENITIES, AMENITY_LABELS, AMENITY_ICONS } from '@/constants/Colors';
 import { fetchPlaces } from '@/utils/api';
 import type { Place } from '@/types';
 
@@ -57,6 +58,7 @@ export default function MappaScreen() {
   const [nearMe, setNearMe] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
   const loadPlaces = useCallback(async (category: string) => {
     console.log('[Mappa] loadPlaces', { category });
@@ -76,6 +78,11 @@ export default function MappaScreen() {
   useEffect(() => {
     loadPlaces(selectedCategory);
   }, [selectedCategory, loadPlaces]);
+
+  const toggleAmenity = (a: string) => {
+    console.log('[Mappa] amenità toggled:', a);
+    setSelectedAmenities((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
+  };
 
   const handleCategoryPress = (cat: string) => {
     console.log('[Mappa] categoria selezionata:', cat);
@@ -122,7 +129,7 @@ export default function MappaScreen() {
     }
   };
 
-  const displayedPlaces = nearMe && userLocation
+  const displayedPlaces = (nearMe && userLocation
     ? places.filter((p) =>
         haversineKm(
           userLocation.latitude,
@@ -131,7 +138,11 @@ export default function MappaScreen() {
           Number(p.longitude)
         ) <= 30
       )
-    : places;
+    : places
+  ).filter((p) =>
+    selectedAmenities.length === 0 ||
+    selectedAmenities.every((a) => (p.amenities ?? []).includes(a))
+  );
 
   const baseMarkers: MapMarker[] = displayedPlaces.map((p) => ({
     id: p.id,
@@ -270,6 +281,46 @@ export default function MappaScreen() {
               </View>
             </BlurView>
           </AnimatedPressable>
+        </ScrollView>
+      </View>
+
+      {/* Amenity filter chips */}
+      <View style={{ position: 'absolute', top: insets.top + 52, left: 0, right: 0, zIndex: 10 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+        >
+          {AMENITIES.map((a) => {
+            const isActive = selectedAmenities.includes(a);
+            return (
+              <AnimatedPressable key={a} onPress={() => toggleAmenity(a)} scaleValue={0.95}>
+                <BlurView intensity={60} style={{ borderRadius: 16, overflow: 'hidden' }}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      gap: 5,
+                      backgroundColor: isActive ? 'rgba(76,175,130,0.85)' : 'rgba(255,255,255,0.75)',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12 }}>{AMENITY_ICONS[a]}</Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: 'Nunito_600SemiBold',
+                        color: isActive ? '#FFF' : COLORS.text,
+                      }}
+                    >
+                      {AMENITY_LABELS[a]}
+                    </Text>
+                  </View>
+                </BlurView>
+              </AnimatedPressable>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -412,6 +463,13 @@ export default function MappaScreen() {
                       >
                         {addressSnippet}
                       </Text>
+                      {item.amenities && item.amenities.length > 0 && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                          {item.amenities.slice(0, 2).map((a) => (
+                            <AmenityBadge key={a} amenity={a} size="sm" />
+                          ))}
+                        </View>
+                      )}
                     </View>
                   </View>
                 </AnimatedPressable>

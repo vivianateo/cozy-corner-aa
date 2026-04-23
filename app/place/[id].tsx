@@ -16,6 +16,7 @@ import { MapPin, MessageSquare, Star, ChevronDown, ChevronUp } from 'lucide-reac
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { StarRating } from '@/components/StarRating';
 import { CategoryBadge } from '@/components/CategoryBadge';
+import { AmenityBadge } from '@/components/AmenityBadge';
 import { COLORS } from '@/constants/Colors';
 import { fetchPlace, createReview } from '@/utils/api';
 import type { PlaceDetail, Review } from '@/types';
@@ -324,6 +325,20 @@ export default function PlaceDetailScreen() {
               {reviewCount === 1 ? 'recensione' : 'recensioni'})
             </Text>
           </View>
+
+          {/* Amenities */}
+          {place.amenities && place.amenities.length > 0 && (
+            <View style={{ gap: 10 }}>
+              <Text style={{ fontSize: 17, fontFamily: 'Nunito_700Bold', color: COLORS.text }}>
+                Servizi per famiglie
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {place.amenities.map((a) => (
+                  <AmenityBadge key={a} amenity={a} size="md" />
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Description */}
           {place.description ? (

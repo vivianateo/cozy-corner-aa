@@ -33,3 +33,20 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const CATEGORIES = ['tutti', 'ristoranti', 'parchi', 'musei', 'caffè', 'hotel', 'altro'] as const;
+
+export const AMENITIES = ['seggiolone', 'menu_bimbi', 'fasciatoio', 'luogo_gioco'] as const;
+export type Amenity = typeof AMENITIES[number];
+
+export const AMENITY_LABELS: Record<string, string> = {
+  seggiolone: 'Seggiolone',
+  menu_bimbi: 'Menù bimbi',
+  fasciatoio: 'Fasciatoio',
+  luogo_gioco: 'Luogo gioco',
+};
+
+export const AMENITY_ICONS: Record<string, string> = {
+  seggiolone: '🪑',
+  menu_bimbi: '🍼',
+  fasciatoio: '🚿',
+  luogo_gioco: '🎠',
+};

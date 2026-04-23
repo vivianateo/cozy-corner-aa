@@ -9,6 +9,7 @@ export interface Place {
   image_url: string;
   avg_rating: number;
   review_count: number;
+  amenities: string[];
   created_at: string;
 }
 

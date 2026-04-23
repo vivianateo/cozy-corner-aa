@@ -18,8 +18,9 @@ import * as Location from 'expo-location';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { StarRating } from '@/components/StarRating';
 import { CategoryBadge } from '@/components/CategoryBadge';
+import { AmenityBadge } from '@/components/AmenityBadge';
 import { SkeletonListItem } from '@/components/SkeletonCard';
-import { COLORS, CATEGORIES, CATEGORY_LABELS } from '@/constants/Colors';
+import { COLORS, CATEGORIES, CATEGORY_LABELS, AMENITIES, AMENITY_LABELS, AMENITY_ICONS } from '@/constants/Colors';
 import { fetchPlaces } from '@/utils/api';
 import type { Place } from '@/types';
 
@@ -69,6 +70,7 @@ export default function EsploraScreen() {
   const [nearMe, setNearMe] = useState(false);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
   const loadPlaces = useCallback(async (category: string, search: string) => {
     console.log('[Esplora] loadPlaces', { category, search });
@@ -91,6 +93,11 @@ export default function EsploraScreen() {
     }, 300);
     return () => clearTimeout(timer);
   }, [selectedCategory, searchQuery, loadPlaces]);
+
+  const toggleAmenity = (a: string) => {
+    console.log('[Esplora] amenità toggled:', a);
+    setSelectedAmenities((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]);
+  };
 
   const handleCategoryPress = (cat: string) => {
     console.log('[Esplora] categoria selezionata:', cat);
@@ -137,7 +144,7 @@ export default function EsploraScreen() {
     }
   };
 
-  const displayedPlaces = nearMe && userLocation
+  const displayedPlaces = (nearMe && userLocation
     ? places.filter((p) =>
         haversineKm(
           userLocation.latitude,
@@ -146,7 +153,11 @@ export default function EsploraScreen() {
           Number(p.longitude)
         ) <= 30
       )
-    : places;
+    : places
+  ).filter((p) =>
+    selectedAmenities.length === 0 ||
+    selectedAmenities.every((a) => (p.amenities ?? []).includes(a))
+  );
 
   const ratingDisplay = (place: Place) => {
     const r = Number(place.avg_rating);
@@ -196,6 +207,13 @@ export default function EsploraScreen() {
               <Text numberOfLines={1} style={{ fontSize: 12, color: COLORS.textSecondary, fontFamily: 'Nunito_400Regular' }}>
                 {addressSnippet}
               </Text>
+              {item.amenities && item.amenities.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+                  {item.amenities.slice(0, 3).map((a) => (
+                    <AmenityBadge key={a} amenity={a} size="sm" />
+                  ))}
+                </View>
+              )}
             </View>
           </View>
         </AnimatedPressable>
@@ -405,6 +423,45 @@ export default function EsploraScreen() {
             </Text>
           </View>
         </AnimatedPressable>
+      </ScrollView>
+
+      {/* Amenity filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}
+      >
+        {AMENITIES.map((a) => {
+          const isActive = selectedAmenities.includes(a);
+          return (
+            <AnimatedPressable key={a} onPress={() => toggleAmenity(a)} scaleValue={0.95}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 16,
+                  gap: 5,
+                  backgroundColor: isActive ? 'rgba(76,175,130,0.15)' : COLORS.surface,
+                  borderWidth: 1,
+                  borderColor: isActive ? '#4CAF82' : COLORS.border,
+                }}
+              >
+                <Text style={{ fontSize: 13 }}>{AMENITY_ICONS[a]}</Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: 'Nunito_600SemiBold',
+                    color: isActive ? '#3A8F65' : COLORS.text,
+                  }}
+                >
+                  {AMENITY_LABELS[a]}
+                </Text>
+              </View>
+            </AnimatedPressable>
+          );
+        })}
       </ScrollView>
 
       {/* Divider before list */}

@@ -2,12 +2,13 @@ import { Place, PlaceDetail, Review } from '@/types';
 
 const BASE_URL = 'https://7k7he546mxvm7vkye6kbx7uuaatr6se6.app.specular.dev';
 
-export async function fetchPlaces(category?: string, search?: string): Promise<{ places: Place[] }> {
+export async function fetchPlaces(category?: string, search?: string, amenities?: string[]): Promise<{ places: Place[] }> {
   const params = new URLSearchParams();
   if (category && category !== 'tutti') params.append('category', category);
   if (search) params.append('search', search);
+  if (amenities && amenities.length > 0) params.append('amenities', amenities.join(','));
   const url = `${BASE_URL}/api/places?${params}`;
-  console.log('[API] fetchPlaces', { category, search, url });
+  console.log('[API] fetchPlaces', { category, search, amenities, url });
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text();
@@ -61,6 +62,7 @@ export async function createPlace(data: {
   address: string;
   latitude: number;
   longitude: number;
+  amenities?: string[];
 }): Promise<Place> {
   const url = `${BASE_URL}/api/places`;
   console.log('[API] createPlace', { data });
