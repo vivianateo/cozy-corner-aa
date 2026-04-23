@@ -320,26 +320,30 @@ export default function MappaScreen() {
       {/* FAB + button */}
       <AnimatedPressable
         onPress={handleAddPress}
-        scaleValue={0.92}
+        scaleValue={0.94}
         style={{
           position: 'absolute',
           bottom: insets.bottom + 90,
-          right: 20,
+          right: 16,
           zIndex: 20,
         }}
       >
         <View
           style={{
-            width: 52,
-            height: 52,
-            borderRadius: 26,
-            backgroundColor: COLORS.primary,
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(232, 115, 74, 0.45)',
+            gap: 8,
+            backgroundColor: COLORS.primary,
+            borderRadius: 28,
+            paddingVertical: 14,
+            paddingHorizontal: 20,
+            boxShadow: '0 4px 20px rgba(232, 115, 74, 0.50)',
           }}
         >
-          <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+          <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
+          <Text style={{ fontSize: 15, fontFamily: 'Nunito_700Bold', color: '#FFFFFF' }}>
+            Aggiungi luogo
+          </Text>
         </View>
       </AnimatedPressable>
     </View>

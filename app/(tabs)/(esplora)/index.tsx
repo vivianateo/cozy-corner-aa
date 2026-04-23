@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { MapPin } from 'lucide-react-native';
+import { MapPin, Plus } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { StarRating } from '@/components/StarRating';
 import { CategoryBadge } from '@/components/CategoryBadge';
@@ -91,6 +91,11 @@ export default function EsploraScreen() {
   const handleCardPress = (place: Place) => {
     console.log('[Esplora] card premuta:', place.id, place.name);
     router.push(`/place/${place.id}`);
+  };
+
+  const handleAddPress = () => {
+    console.log('[Esplora] aggiungi luogo premuto');
+    router.push('/add-place');
   };
 
   const ratingDisplay = (place: Place) => {
@@ -176,6 +181,41 @@ export default function EsploraScreen() {
 
   const ListHeader = (
     <View>
+      {/* CTA banner */}
+      <AnimatedPressable onPress={handleAddPress} scaleValue={0.97} style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 4 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: COLORS.primary,
+            borderRadius: 16,
+            padding: 16,
+            gap: 14,
+            boxShadow: '0 4px 16px rgba(232, 115, 74, 0.35)',
+          }}
+        >
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(255,255,255,0.20)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontFamily: 'Nunito_700Bold', color: '#FFFFFF' }}>
+              Conosci un posto speciale?
+            </Text>
+            <Text style={{ fontSize: 13, fontFamily: 'Nunito_400Regular', color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
+              Aggiungilo alla mappa per le altre famiglie
+            </Text>
+          </View>
+        </View>
+      </AnimatedPressable>
       {/* Category chips */}
       <ScrollView
         horizontal
