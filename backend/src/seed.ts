@@ -12,6 +12,7 @@ const places: Array<{
   latitude: number;
   longitude: number;
   imageUrl: string;
+  amenities: string[];
 }> = [
   {
     name: "Ristorante La Famiglia",
@@ -21,6 +22,7 @@ const places: Array<{
     latitude: 45.4654,
     longitude: 9.1859,
     imageUrl: "https://picsum.photos/seed/place1/800/600",
+    amenities: ["seggiolone", "menu_bimbi", "fasciatoio"],
   },
   {
     name: "Parco Sempione",
@@ -30,6 +32,7 @@ const places: Array<{
     latitude: 45.4719,
     longitude: 9.1765,
     imageUrl: "https://picsum.photos/seed/place2/800/600",
+    amenities: ["luogo_gioco", "fasciatoio"],
   },
   {
     name: "Museo dei Bambini Roma",
@@ -39,6 +42,7 @@ const places: Array<{
     latitude: 41.9109,
     longitude: 12.4818,
     imageUrl: "https://picsum.photos/seed/place3/800/600",
+    amenities: ["fasciatoio", "luogo_gioco"],
   },
   {
     name: "Caffè Nuvola",
@@ -48,6 +52,7 @@ const places: Array<{
     latitude: 41.9058,
     longitude: 12.4797,
     imageUrl: "https://picsum.photos/seed/place4/800/600",
+    amenities: ["seggiolone", "fasciatoio"],
   },
   {
     name: "Hotel Bimbi Felici",
@@ -57,6 +62,7 @@ const places: Array<{
     latitude: 43.7687,
     longitude: 11.2488,
     imageUrl: "https://picsum.photos/seed/place5/800/600",
+    amenities: ["seggiolone", "menu_bimbi", "fasciatoio", "luogo_gioco"],
   },
   {
     name: "Trattoria Mamma Rosa",
@@ -66,6 +72,7 @@ const places: Array<{
     latitude: 40.8518,
     longitude: 14.2681,
     imageUrl: "https://picsum.photos/seed/place6/800/600",
+    amenities: ["seggiolone", "menu_bimbi", "fasciatoio"],
   },
   {
     name: "Giardini Reali",
@@ -75,6 +82,7 @@ const places: Array<{
     latitude: 45.0703,
     longitude: 7.6869,
     imageUrl: "https://picsum.photos/seed/place7/800/600",
+    amenities: ["luogo_gioco", "fasciatoio"],
   },
   {
     name: "Museo della Scienza e della Tecnologia",
@@ -84,6 +92,7 @@ const places: Array<{
     latitude: 45.4625,
     longitude: 9.1706,
     imageUrl: "https://picsum.photos/seed/place8/800/600",
+    amenities: ["fasciatoio", "luogo_gioco"],
   },
   {
     name: "Caffè Letterario Piccolo",
@@ -93,6 +102,7 @@ const places: Array<{
     latitude: 44.4949,
     longitude: 11.3426,
     imageUrl: "https://picsum.photos/seed/place9/800/600",
+    amenities: ["seggiolone", "fasciatoio"],
   },
   {
     name: "Hotel Villa Toscana",
@@ -102,6 +112,7 @@ const places: Array<{
     latitude: 43.7896,
     longitude: 11.2658,
     imageUrl: "https://picsum.photos/seed/place10/800/600",
+    amenities: ["seggiolone", "menu_bimbi", "fasciatoio", "luogo_gioco"],
   },
   {
     name: "Osteria del Porto",
@@ -111,6 +122,7 @@ const places: Array<{
     latitude: 40.8400,
     longitude: 14.2587,
     imageUrl: "https://picsum.photos/seed/place11/800/600",
+    amenities: ["seggiolone", "menu_bimbi", "fasciatoio"],
   },
   {
     name: "Parco della Montagnola",
@@ -120,6 +132,7 @@ const places: Array<{
     latitude: 44.5013,
     longitude: 11.3394,
     imageUrl: "https://picsum.photos/seed/place12/800/600",
+    amenities: ["luogo_gioco", "fasciatoio"],
   },
   {
     name: "Galleria degli Uffizi Family",
@@ -129,6 +142,7 @@ const places: Array<{
     latitude: 43.7677,
     longitude: 11.2553,
     imageUrl: "https://picsum.photos/seed/place13/800/600",
+    amenities: ["fasciatoio", "luogo_gioco"],
   },
   {
     name: "Bar Pasticceria Dolce Vita",
@@ -138,6 +152,7 @@ const places: Array<{
     latitude: 45.0677,
     longitude: 7.6825,
     imageUrl: "https://picsum.photos/seed/place14/800/600",
+    amenities: ["seggiolone", "fasciatoio"],
   },
   {
     name: "Agriturismo Le Colline",
@@ -147,6 +162,7 @@ const places: Array<{
     latitude: 43.3188,
     longitude: 11.3307,
     imageUrl: "https://picsum.photos/seed/place15/800/600",
+    amenities: ["seggiolone"],
   },
 ];
 

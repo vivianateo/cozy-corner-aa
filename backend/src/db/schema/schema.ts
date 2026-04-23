@@ -13,6 +13,7 @@ export const places = pgTable('places', {
   imageUrl: text('image_url').notNull(),
   avgRating: doublePrecision('avg_rating').notNull().default(0),
   reviewCount: integer('review_count').notNull().default(0),
+  amenities: text('amenities').array().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
