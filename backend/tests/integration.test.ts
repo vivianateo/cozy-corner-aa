@@ -3,6 +3,7 @@ import { api, authenticatedApi, signUpTestUser, expectStatus, connectWebSocket, 
 
 describe("API Integration Tests", () => {
   let placeId: string;
+  let placeWithAmenitiesId: string;
 
   test("List all places", async () => {
     const res = await api("/api/places");
@@ -32,6 +33,28 @@ describe("API Integration Tests", () => {
     expect(data.name).toBe("Test Restaurant");
     expect(data.category).toBe("ristoranti");
     placeId = data.id;
+  });
+
+  test("Create a place with amenities", async () => {
+    const res = await api("/api/places", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Family-Friendly Park",
+        category: "parchi",
+        description: "A great park for families",
+        address: "Via Verde 5, Milano",
+        latitude: 45.4800,
+        longitude: 9.2100,
+        amenities: ["seggiolone", "luogo_gioco"],
+      }),
+    });
+    await expectStatus(res, 201);
+    const data = await res.json();
+    expect(data).toHaveProperty("id");
+    expect(data.name).toBe("Family-Friendly Park");
+    expect(Array.isArray(data.amenities)).toBe(true);
+    placeWithAmenitiesId = data.id;
   });
 
   test("Get place by ID", async () => {
@@ -78,6 +101,20 @@ describe("API Integration Tests", () => {
 
   test("List places with search filter", async () => {
     const res = await api("/api/places?search=Test");
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(Array.isArray(data.places)).toBe(true);
+  });
+
+  test("List places with amenities filter", async () => {
+    const res = await api("/api/places?amenities=seggiolone");
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(Array.isArray(data.places)).toBe(true);
+  });
+
+  test("List places with amenities filter for multiple amenities", async () => {
+    const res = await api("/api/places?amenities=seggiolone,luogo_gioco");
     await expectStatus(res, 200);
     const data = await res.json();
     expect(Array.isArray(data.places)).toBe(true);
@@ -142,7 +179,7 @@ describe("API Integration Tests", () => {
     await expectStatus(res, 400);
   });
 
-  test("Create review with rating out of range returns 400", async () => {
+  test("Create review with rating out of range (above max) returns 400", async () => {
     const res = await api(`/api/places/${placeId}/reviews`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -153,5 +190,38 @@ describe("API Integration Tests", () => {
       }),
     });
     await expectStatus(res, 400);
+  });
+
+  test("Create review with rating below minimum returns 400", async () => {
+    const res = await api(`/api/places/${placeId}/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        author_name: "Test User",
+        rating: 0, // Invalid: min is 1
+        comment: "Test comment",
+      }),
+    });
+    await expectStatus(res, 400);
+  });
+
+  test("Create review with negative rating returns 400", async () => {
+    const res = await api(`/api/places/${placeId}/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        author_name: "Test User",
+        rating: -1, // Invalid: min is 1
+        comment: "Test comment",
+      }),
+    });
+    await expectStatus(res, 400);
+  });
+
+  test("List places with multiple filters (category and search)", async () => {
+    const res = await api("/api/places?category=ristoranti&search=Test");
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(Array.isArray(data.places)).toBe(true);
   });
 });

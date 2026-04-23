@@ -3,6 +3,10 @@ import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema/schema.js';
 import type { App } from '../index.js';
 
+type AmenityType = 'seggiolone' | 'menu_bimbi' | 'fasciatoio' | 'luogo_gioco';
+
+const VALID_AMENITIES: Set<AmenityType> = new Set(['seggiolone', 'menu_bimbi', 'fasciatoio', 'luogo_gioco']);
+
 interface CreatePlaceBody {
   name: string;
   category: 'ristoranti' | 'parchi' | 'musei' | 'caffè' | 'hotel' | 'altro';
@@ -11,6 +15,7 @@ interface CreatePlaceBody {
   latitude: number;
   longitude: number;
   image_url?: string;
+  amenities?: string[];
 }
 
 interface CreateReviewBody {
@@ -22,6 +27,7 @@ interface CreateReviewBody {
 interface PlacesQuerystring {
   category?: string;
   search?: string;
+  amenities?: string;
 }
 
 export function register(app: App, fastify: FastifyInstance) {
@@ -41,6 +47,10 @@ export function register(app: App, fastify: FastifyInstance) {
           search: {
             type: 'string',
             description: 'Search by name, description, or address',
+          },
+          amenities: {
+            type: 'string',
+            description: 'Comma-separated list of amenities to filter by (requires all)',
           },
         },
       },
@@ -64,6 +74,7 @@ export function register(app: App, fastify: FastifyInstance) {
                   avg_rating: { type: 'number' },
                   review_count: { type: 'integer' },
                   created_at: { type: 'string', format: 'date-time' },
+                  amenities: { type: 'array', items: { type: 'string' } },
                 },
               },
             },
@@ -72,8 +83,8 @@ export function register(app: App, fastify: FastifyInstance) {
       },
     },
   }, async (request: FastifyRequest<{ Querystring: PlacesQuerystring }>, reply: FastifyReply) => {
-    const { category, search } = request.query;
-    app.logger.info({ category, search }, 'Fetching places');
+    const { category, search, amenities } = request.query;
+    app.logger.info({ category, search, amenities }, 'Fetching places');
 
     try {
       let allPlaces = await app.db.select().from(schema.places);
@@ -93,6 +104,14 @@ export function register(app: App, fastify: FastifyInstance) {
         );
       }
 
+      if (amenities) {
+        const requiredAmenities = amenities.split(',').map((a) => a.trim());
+        filtered = filtered.filter((place) => {
+          const placeAmenities = place.amenities || [];
+          return requiredAmenities.every((amenity) => placeAmenities.includes(amenity));
+        });
+      }
+
       filtered.sort((a, b) => b.avgRating - a.avgRating);
 
       const response = {
@@ -108,13 +127,14 @@ export function register(app: App, fastify: FastifyInstance) {
           avg_rating: place.avgRating,
           review_count: place.reviewCount,
           created_at: place.createdAt,
+          amenities: place.amenities || [],
         })),
       };
 
       app.logger.info({ count: response.places.length }, 'Places fetched successfully');
       return response;
     } catch (error) {
-      app.logger.error({ err: error, category, search }, 'Failed to fetch places');
+      app.logger.error({ err: error, category, search, amenities }, 'Failed to fetch places');
       throw error;
     }
   });
@@ -146,6 +166,7 @@ export function register(app: App, fastify: FastifyInstance) {
             avg_rating: { type: 'number' },
             review_count: { type: 'integer' },
             created_at: { type: 'string', format: 'date-time' },
+            amenities: { type: 'array', items: { type: 'string' } },
             reviews: {
               type: 'array',
               items: {
@@ -199,6 +220,7 @@ export function register(app: App, fastify: FastifyInstance) {
         avg_rating: place.avgRating,
         review_count: place.reviewCount,
         created_at: place.createdAt,
+        amenities: place.amenities || [],
         reviews: sortedReviews.map((review) => ({
           id: review.id,
           place_id: review.placeId,
@@ -236,6 +258,13 @@ export function register(app: App, fastify: FastifyInstance) {
           latitude: { type: 'number' },
           longitude: { type: 'number' },
           image_url: { type: 'string' },
+          amenities: {
+            type: 'array',
+            items: {
+              type: 'string',
+              enum: ['seggiolone', 'menu_bimbi', 'fasciatoio', 'luogo_gioco'],
+            },
+          },
         },
       },
       response: {
@@ -253,6 +282,7 @@ export function register(app: App, fastify: FastifyInstance) {
             avg_rating: { type: 'number' },
             review_count: { type: 'integer' },
             created_at: { type: 'string', format: 'date-time' },
+            amenities: { type: 'array', items: { type: 'string' } },
           },
         },
         400: {
@@ -264,12 +294,21 @@ export function register(app: App, fastify: FastifyInstance) {
       },
     },
   }, async (request: FastifyRequest<{ Body: CreatePlaceBody }>, reply: FastifyReply) => {
-    const { name, category, description, address, latitude, longitude, image_url } = request.body;
+    const { name, category, description, address, latitude, longitude, image_url, amenities } = request.body;
     const imageUrl = image_url || 'https://picsum.photos/seed/new/800/600';
+    const placeAmenities = amenities || [];
 
-    app.logger.info({ name, category, address }, 'Creating new place');
+    app.logger.info({ name, category, address, amenities }, 'Creating new place');
 
     try {
+      // Validate amenities
+      for (const amenity of placeAmenities) {
+        if (!VALID_AMENITIES.has(amenity as AmenityType)) {
+          app.logger.warn({ amenity, validAmenities: Array.from(VALID_AMENITIES) }, 'Invalid amenity value');
+          return reply.status(400).send({ error: `Invalid amenity value: ${amenity}` });
+        }
+      }
+
       const [place] = await app.db
         .insert(schema.places)
         .values({
@@ -280,10 +319,11 @@ export function register(app: App, fastify: FastifyInstance) {
           latitude,
           longitude,
           imageUrl,
+          amenities: placeAmenities,
         })
         .returning();
 
-      app.logger.info({ placeId: place.id }, 'Place created successfully');
+      app.logger.info({ placeId: place.id, amenities: place.amenities }, 'Place created successfully');
       return reply.status(201).send({
         id: place.id,
         name: place.name,
@@ -296,6 +336,7 @@ export function register(app: App, fastify: FastifyInstance) {
         avg_rating: place.avgRating,
         review_count: place.reviewCount,
         created_at: place.createdAt,
+        amenities: place.amenities || [],
       });
     } catch (error) {
       app.logger.error({ err: error, name, category }, 'Failed to create place');
