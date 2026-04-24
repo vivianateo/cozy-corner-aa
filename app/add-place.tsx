@@ -7,9 +7,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CheckCircle, MapPin, X } from 'lucide-react-native';
+import { CheckCircle, MapPin, X, Navigation } from 'lucide-react-native';
+import * as Location from 'expo-location';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { Map } from '@/components/Map';
 import type { MapMarker } from '@/components/Map';
@@ -47,9 +49,27 @@ export default function AddPlaceScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const successOpacity = useRef(new Animated.Value(0)).current;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Silently get user location at mount if permission already granted
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          console.log('[AddPlace] posizione utente ottenuta silenziosamente:', loc.coords.latitude, loc.coords.longitude);
+          setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        }
+      } catch (e) {
+        console.log('[AddPlace] posizione non disponibile al mount (silenzioso)');
+      }
+    })();
+  }, []);
 
   // Debounced Nominatim address search
   useEffect(() => {
@@ -63,10 +83,13 @@ export default function AddPlaceScreen() {
       console.log('[AddPlace] ricerca indirizzo Nominatim:', address);
       setLoadingSuggestions(true);
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=5&countrycodes=it&addressdetails=1`,
-          { headers: { 'User-Agent': 'CozyCornerApp/1.0' } }
-        );
+        let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=5&countrycodes=it&addressdetails=1`;
+        if (userLocation) {
+          const { latitude: lat, longitude: lon } = userLocation;
+          url += `&viewbox=${lon - 0.5},${lat + 0.5},${lon + 0.5},${lat - 0.5}&bounded=0`;
+          console.log('[AddPlace] Nominatim con viewbox bias posizione utente');
+        }
+        const res = await fetch(url, { headers: { 'User-Agent': 'CozyCornerApp/1.0' } });
         if (!res.ok) {
           console.warn('[AddPlace] Nominatim error', res.status);
           setSuggestions([]);
@@ -86,7 +109,62 @@ export default function AddPlaceScreen() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [address]);
+  }, [address, userLocation]);
+
+  const handleUseMyLocation = async () => {
+    console.log('[AddPlace] "Usa la mia posizione" premuto');
+    setLocationLoading(true);
+    try {
+      let loc: Location.LocationObject | null = null;
+      if (userLocation) {
+        console.log('[AddPlace] posizione già disponibile, uso quella cached');
+        loc = {
+          coords: {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            altitude: null,
+            accuracy: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: Date.now(),
+        };
+      } else {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('[AddPlace] permesso posizione negato');
+          return;
+        }
+        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        console.log('[AddPlace] posizione ottenuta:', loc.coords.latitude, loc.coords.longitude);
+        setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      }
+
+      const { latitude: lat, longitude: lon } = loc.coords;
+      console.log('[AddPlace] reverse geocoding Nominatim per', lat, lon);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+        { headers: { 'User-Agent': 'CozyCornerApp/1.0' } }
+      );
+      if (!res.ok) {
+        console.warn('[AddPlace] reverse geocoding error', res.status);
+        return;
+      }
+      const data = await res.json();
+      console.log('[AddPlace] reverse geocoding risultato:', data.display_name);
+      setAddress(data.display_name);
+      setLatitude(lat);
+      setLongitude(lon);
+      setSuggestions([]);
+      setShowSuggestions(false);
+      if (errors.address) setErrors((p) => ({ ...p, address: undefined }));
+    } catch (e) {
+      console.error('[AddPlace] errore "Usa la mia posizione"', e);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const handleSelectSuggestion = (item: NominatimResult) => {
     console.log('[AddPlace] suggerimento selezionato:', item.display_name, item.lat, item.lon);
@@ -441,6 +519,40 @@ export default function AddPlaceScreen() {
                   </View>
                 </AnimatedPressable>
               )}
+            </View>
+
+            {/* "Usa la mia posizione" button */}
+            <View style={{ flexDirection: 'row', marginTop: 8 }}>
+              <AnimatedPressable onPress={handleUseMyLocation} disabled={locationLoading} scaleValue={0.96}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: 'rgba(74,144,217,0.12)',
+                    borderWidth: 1,
+                    borderColor: '#4A90D9',
+                  }}
+                >
+                  {locationLoading ? (
+                    <ActivityIndicator size="small" color="#4A90D9" />
+                  ) : (
+                    <Navigation size={14} color="#4A90D9" strokeWidth={2} />
+                  )}
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: 'Nunito_600SemiBold',
+                      color: '#4A90D9',
+                    }}
+                  >
+                    Usa la mia posizione
+                  </Text>
+                </View>
+              </AnimatedPressable>
             </View>
 
             {/* Suggestions dropdown */}

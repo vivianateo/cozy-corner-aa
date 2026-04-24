@@ -7,12 +7,13 @@ import {
   Alert,
   ActivityIndicator,
   ImageSourcePropType,
+  Modal,
+  Image,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import { Plus, MapPin, Navigation } from 'lucide-react-native';
+import { Plus, MapPin, Navigation, Compass, X } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { Map } from '@/components/Map';
 import type { MapMarker } from '@/components/Map';
@@ -48,6 +49,8 @@ const ITALY_REGION = {
   longitudeDelta: 8,
 };
 
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200';
+
 export default function MappaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -59,6 +62,8 @@ export default function MappaScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [showNearbySheet, setShowNearbySheet] = useState(false);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
 
   const loadPlaces = useCallback(async (category: string) => {
     console.log('[Mappa] loadPlaces', { category });
@@ -129,6 +134,36 @@ export default function MappaScreen() {
     }
   };
 
+  const handleCompassPress = async () => {
+    console.log('[Mappa] FAB bussola premuto — apri sheet vicino a me');
+    if (userLocation) {
+      setShowNearbySheet(true);
+      return;
+    }
+    setNearbyLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Posizione non disponibile', 'Abilita la posizione nelle impostazioni per trovare luoghi vicini a te.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      console.log('[Mappa] posizione ottenuta per sheet vicino a me:', loc.coords.latitude, loc.coords.longitude);
+      setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      setShowNearbySheet(true);
+    } catch {
+      Alert.alert('Errore', 'Impossibile ottenere la posizione.');
+    } finally {
+      setNearbyLoading(false);
+    }
+  };
+
+  const handleNearbyCardPress = (place: Place) => {
+    console.log('[Mappa] card vicino a me premuta:', place.id, place.name);
+    setShowNearbySheet(false);
+    router.push(`/place/${place.id}`);
+  };
+
   const displayedPlaces = (nearMe && userLocation
     ? places.filter((p) =>
         haversineKm(
@@ -143,6 +178,22 @@ export default function MappaScreen() {
     selectedAmenities.length === 0 ||
     selectedAmenities.every((a) => (p.amenities ?? []).includes(a))
   );
+
+  const nearbyPlaces = userLocation
+    ? places
+        .map((p) => ({
+          place: p,
+          distKm: haversineKm(
+            userLocation.latitude,
+            userLocation.longitude,
+            Number(p.latitude),
+            Number(p.longitude)
+          ),
+        }))
+        .filter(({ distKm }) => distKm <= 50)
+        .sort((a, b) => a.distKm - b.distKm)
+        .slice(0, 10)
+    : [];
 
   const baseMarkers: MapMarker[] = displayedPlaces.map((p) => ({
     id: p.id,
@@ -418,7 +469,7 @@ export default function MappaScreen() {
                     <Image
                       source={resolveImageSource(item.image_url)}
                       style={{ width: '100%', height: 100 }}
-                      contentFit="cover"
+                      resizeMode="cover"
                     />
                     <View style={{ padding: 10, gap: 4 }}>
                       <Text
@@ -479,7 +530,37 @@ export default function MappaScreen() {
         )}
       </View>
 
-      {/* FAB */}
+      {/* FAB bussola — raccomandazioni vicino a me */}
+      <AnimatedPressable
+        onPress={handleCompassPress}
+        scaleValue={0.94}
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + 150,
+          right: 16,
+          zIndex: 20,
+        }}
+      >
+        <View
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: '#4A90D9',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(74,144,217,0.45)',
+          }}
+        >
+          {nearbyLoading ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Compass size={22} color="#FFF" strokeWidth={2} />
+          )}
+        </View>
+      </AnimatedPressable>
+
+      {/* FAB aggiungi luogo */}
       <AnimatedPressable
         onPress={handleAddPress}
         scaleValue={0.94}
@@ -508,6 +589,185 @@ export default function MappaScreen() {
           </Text>
         </View>
       </AnimatedPressable>
+
+      {/* Bottom sheet — Vicino a te */}
+      <Modal
+        visible={showNearbySheet}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          console.log('[Mappa] sheet vicino a me chiuso');
+          setShowNearbySheet(false);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+          {/* Header */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              paddingHorizontal: 20,
+              paddingTop: 24,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: COLORS.border,
+            }}
+          >
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ fontSize: 20, fontFamily: 'Nunito_800ExtraBold', color: COLORS.text }}>
+                Vicino a te
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: 'Nunito_400Regular',
+                  color: COLORS.textSecondary,
+                  lineHeight: 18,
+                }}
+              >
+                I luoghi più adatti alle famiglie nelle tue vicinanze
+              </Text>
+            </View>
+            <AnimatedPressable
+              onPress={() => {
+                console.log('[Mappa] sheet vicino a me chiuso tramite X');
+                setShowNearbySheet(false);
+              }}
+              scaleValue={0.9}
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: COLORS.surfaceSecondary,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginLeft: 12,
+                }}
+              >
+                <X size={16} color={COLORS.textSecondary} strokeWidth={2.5} />
+              </View>
+            </AnimatedPressable>
+          </View>
+
+          {/* List */}
+          <ScrollView
+            contentContainerStyle={{ padding: 16, gap: 12 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {nearbyPlaces.length === 0 ? (
+              <View
+                style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 60,
+                  gap: 12,
+                }}
+              >
+                <MapPin size={36} color={COLORS.textTertiary} strokeWidth={1.5} />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: 'Nunito_600SemiBold',
+                    color: COLORS.textSecondary,
+                    textAlign: 'center',
+                  }}
+                >
+                  Nessun luogo trovato nelle vicinanze
+                </Text>
+              </View>
+            ) : (
+              nearbyPlaces.map(({ place, distKm }) => {
+                const distText = distKm < 1
+                  ? `${Math.round(distKm * 1000)} m`
+                  : `${distKm.toFixed(1)} km`;
+                const addressSnippet = place.address ? place.address.split(',')[0] : '';
+                const placeAmenities = (place.amenities ?? []).slice(0, 2);
+                const imageUri = place.image_url || FALLBACK_IMAGE;
+                return (
+                  <AnimatedPressable
+                    key={place.id}
+                    onPress={() => handleNearbyCardPress(place)}
+                    scaleValue={0.97}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        backgroundColor: COLORS.surface,
+                        borderRadius: 14,
+                        padding: 12,
+                        gap: 12,
+                        borderWidth: 1,
+                        borderColor: COLORS.border,
+                        boxShadow: '0 2px 10px rgba(26,23,20,0.08)',
+                      }}
+                    >
+                      <Image
+                        source={{ uri: imageUri }}
+                        style={{ width: 72, height: 72, borderRadius: 10 }}
+                        resizeMode="cover"
+                      />
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              flex: 1,
+                              fontSize: 15,
+                              fontFamily: 'Nunito_700Bold',
+                              color: COLORS.text,
+                            }}
+                          >
+                            {place.name}
+                          </Text>
+                          <View
+                            style={{
+                              backgroundColor: 'rgba(74,144,217,0.12)',
+                              borderRadius: 10,
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: '#4A90D9',
+                                fontFamily: 'Nunito_700Bold',
+                                fontSize: 12,
+                              }}
+                            >
+                              {distText}
+                            </Text>
+                          </View>
+                        </View>
+                        <CategoryBadge category={place.category} />
+                        {placeAmenities.length > 0 && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                            {placeAmenities.map((a) => (
+                              <AmenityBadge key={a} amenity={a} size="sm" />
+                            ))}
+                          </View>
+                        )}
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 12,
+                            fontFamily: 'Nunito_400Regular',
+                            color: COLORS.textSecondary,
+                          }}
+                        >
+                          {addressSnippet}
+                        </Text>
+                      </View>
+                    </View>
+                  </AnimatedPressable>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
