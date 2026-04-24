@@ -11,6 +11,10 @@ export default function TabLayout() {
         <Icon sf="magnifyingglass" />
         <Label>Esplora</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="(profilo)">
+        <Icon sf="person" />
+        <Label>Profilo</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }

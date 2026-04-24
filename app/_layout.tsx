@@ -15,6 +15,7 @@ import {
 } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   useFonts,
@@ -91,35 +92,49 @@ export default function RootLayout() {
 
   return (
     <DevErrorBoundary>
-      <StatusBar style="auto" animated />
-      <ThemeProvider
-        value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
-      >
-        <SafeAreaProvider>
-          <WidgetProvider>
-            <GestureHandlerRootView>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="place/[id]"
-                  options={{ headerShown: true, title: "" }}
-                />
-                <Stack.Screen
-                  name="add-place"
-                  options={{
-                    presentation: "formSheet",
-                    sheetGrabberVisible: true,
-                    sheetAllowedDetents: [0.75, 1.0],
-                    headerShown: true,
-                    title: "Aggiungi un luogo",
-                  }}
-                />
-              </Stack>
-              <SystemBars style={"auto"} />
-            </GestureHandlerRootView>
-          </WidgetProvider>
-        </SafeAreaProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <StatusBar style="auto" animated />
+        <ThemeProvider
+          value={colorScheme === "dark" ? CustomDarkTheme : CustomDefaultTheme}
+        >
+          <SafeAreaProvider>
+            <WidgetProvider>
+              <GestureHandlerRootView>
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="place/[id]"
+                    options={{ headerShown: true, title: "" }}
+                  />
+                  <Stack.Screen
+                    name="add-place"
+                    options={{
+                      presentation: "formSheet",
+                      sheetGrabberVisible: true,
+                      sheetAllowedDetents: [0.75, 1.0],
+                      headerShown: true,
+                      title: "Aggiungi un luogo",
+                    }}
+                  />
+                  <Stack.Screen
+                    name="auth-screen"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="auth-popup"
+                    options={{ headerShown: false, presentation: "fullScreenModal" }}
+                  />
+                  <Stack.Screen
+                    name="auth-callback"
+                    options={{ headerShown: false }}
+                  />
+                </Stack>
+                <SystemBars style={"auto"} />
+              </GestureHandlerRootView>
+            </WidgetProvider>
+          </SafeAreaProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </DevErrorBoundary>
   );
 }

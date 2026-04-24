@@ -7,18 +7,20 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
   ImageSourcePropType,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MapPin, MessageSquare, Star, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { MapPin, MessageSquare, Star, ChevronDown, ChevronUp, Heart } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { StarRating } from '@/components/StarRating';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { AmenityBadge } from '@/components/AmenityBadge';
 import { COLORS } from '@/constants/Colors';
-import { fetchPlace, createReview } from '@/utils/api';
+import { fetchPlace, createReview, fetchFavoriteIds, addFavorite, removeFavorite } from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { PlaceDetail, Review } from '@/types';
 
 function resolveImageSource(source: string | number | ImageSourcePropType | undefined): ImageSourcePropType {
@@ -105,9 +107,16 @@ function ReviewCard({ review, index }: { review: Review; index: number }) {
 export default function PlaceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
+  const router = useRouter();
+  const { user } = useAuth();
+
   const [place, setPlace] = useState<PlaceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Favorites state
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
 
   // Review form state
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -141,6 +150,44 @@ export default function PlaceDetailScreen() {
   useEffect(() => {
     loadPlace();
   }, [loadPlace]);
+
+  // Load favorite status after place loads
+  useEffect(() => {
+    if (!user || !id) return;
+    (async () => {
+      try {
+        console.log('[PlaceDetail] carico stato preferito per', id);
+        const ids = await fetchFavoriteIds();
+        setIsFavorited(ids.includes(id));
+      } catch (e: any) {
+        console.error('[PlaceDetail] errore caricamento preferiti:', e.message);
+      }
+    })();
+  }, [user, id]);
+
+  const handleFavoriteToggle = async () => {
+    if (!user) {
+      console.log('[PlaceDetail] utente non autenticato, reindirizzo a auth-screen');
+      router.push('/auth-screen');
+      return;
+    }
+    const newState = !isFavorited;
+    console.log('[PlaceDetail] toggle preferito:', newState ? 'aggiunto' : 'rimosso', id);
+    setIsFavorited(newState);
+    setFavLoading(true);
+    try {
+      if (newState) {
+        await addFavorite(id!);
+      } else {
+        await removeFavorite(id!);
+      }
+    } catch (e: any) {
+      console.error('[PlaceDetail] errore toggle preferito:', e.message);
+      setIsFavorited(!newState);
+    } finally {
+      setFavLoading(false);
+    }
+  };
 
   const toggleReviewForm = () => {
     console.log('[PlaceDetail] toggle form recensione, showReviewForm:', !showReviewForm);
@@ -181,7 +228,6 @@ export default function PlaceDetailScreen() {
       setReviewName('');
       setReviewRating(0);
       setReviewComment('');
-      // Collapse form and reload
       Animated.parallel([
         Animated.timing(formHeight, { toValue: 0, duration: 250, useNativeDriver: false }),
         Animated.timing(formOpacity, { toValue: 0, duration: 250, useNativeDriver: false }),
@@ -246,6 +292,9 @@ export default function PlaceDetailScreen() {
     outputRange: [0, 400],
   });
 
+  const heartColor = isFavorited ? COLORS.primary : COLORS.textSecondary;
+  const heartFill = isFavorited ? COLORS.primary : 'transparent';
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: COLORS.background }}
@@ -267,6 +316,30 @@ export default function PlaceDetailScreen() {
             colors={['transparent', 'rgba(26,23,20,0.6)']}
             style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 120 }}
           />
+          {/* Heart button */}
+          <AnimatedPressable
+            onPress={handleFavoriteToggle}
+            scaleValue={0.88}
+            style={{ position: 'absolute', top: 12, right: 12 }}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              }}
+            >
+              {favLoading ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Heart size={20} color={heartColor} fill={heartFill} strokeWidth={1.8} />
+              )}
+            </View>
+          </AnimatedPressable>
         </View>
 
         {/* Content */}
