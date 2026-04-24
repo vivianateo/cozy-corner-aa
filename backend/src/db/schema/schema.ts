@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, timestamp, doublePrecision, integer, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, doublePrecision, integer, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import { user } from './auth-schema.js';
 
 export const categoryEnum = pgEnum('category', ['ristoranti', 'parchi', 'musei', 'caffè', 'hotel', 'altro']);
 
@@ -25,3 +26,12 @@ export const reviews = pgTable('reviews', {
   comment: text('comment').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const favorites = pgTable('favorites', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  placeId: uuid('place_id').notNull().references(() => places.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('user_place_unique').on(table.userId, table.placeId),
+]);

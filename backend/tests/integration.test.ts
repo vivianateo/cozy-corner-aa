@@ -1,9 +1,16 @@
 import { describe, test, expect } from "bun:test";
-import { api, authenticatedApi, signUpTestUser, expectStatus, connectWebSocket, connectAuthenticatedWebSocket, waitForMessage } from "./helpers";
+import { api, authenticatedApi, signUpTestUser, expectStatus } from "./helpers";
 
 describe("API Integration Tests", () => {
   let placeId: string;
   let placeWithAmenitiesId: string;
+  let authToken: string;
+
+  test("Setup auth for favorites tests", async () => {
+    const { token } = await signUpTestUser();
+    authToken = token;
+    expect(authToken).toBeDefined();
+  });
 
   test("List all places", async () => {
     const res = await api("/api/places");
@@ -223,5 +230,124 @@ describe("API Integration Tests", () => {
     await expectStatus(res, 200);
     const data = await res.json();
     expect(Array.isArray(data.places)).toBe(true);
+  });
+
+  // Favorites tests - authenticated endpoints
+  test("Get favorite IDs for authenticated user (initially empty)", async () => {
+    const res = await authenticatedApi("/api/favorites/ids", authToken);
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(data).toHaveProperty("ids");
+    expect(Array.isArray(data.ids)).toBe(true);
+  });
+
+  test("Get all favorites for authenticated user (initially empty)", async () => {
+    const res = await authenticatedApi("/api/favorites", authToken);
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(data).toHaveProperty("favorites");
+    expect(Array.isArray(data.favorites)).toBe(true);
+  });
+
+  test("Add place to favorites", async () => {
+    const res = await authenticatedApi("/api/favorites", authToken, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        place_id: placeId,
+      }),
+    });
+    await expectStatus(res, 200, 201);
+    const data = await res.json();
+    expect(data).toHaveProperty("success");
+    expect(data.success).toBe(true);
+  });
+
+  test("Get favorite IDs includes newly added place", async () => {
+    const res = await authenticatedApi("/api/favorites/ids", authToken);
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(data.ids).toContain(placeId);
+  });
+
+  test("Get all favorites includes newly added place with place details", async () => {
+    const res = await authenticatedApi("/api/favorites", authToken);
+    await expectStatus(res, 200);
+    const data = await res.json();
+    const favoriteIds = data.favorites.map((fav: any) => fav.id);
+    expect(favoriteIds).toContain(placeId);
+    const favPlace = data.favorites.find((fav: any) => fav.id === placeId);
+    expect(favPlace).toHaveProperty("name");
+    expect(favPlace).toHaveProperty("category");
+  });
+
+  test("Add another place to favorites", async () => {
+    const res = await authenticatedApi("/api/favorites", authToken, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        place_id: placeWithAmenitiesId,
+      }),
+    });
+    await expectStatus(res, 200, 201);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+  });
+
+  test("Remove place from favorites", async () => {
+    const res = await authenticatedApi(`/api/favorites/${placeId}`, authToken, {
+      method: "DELETE",
+    });
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(data).toHaveProperty("success");
+    expect(data.success).toBe(true);
+  });
+
+  test("Get favorite IDs after removal does not include deleted place", async () => {
+    const res = await authenticatedApi("/api/favorites/ids", authToken);
+    await expectStatus(res, 200);
+    const data = await res.json();
+    expect(data.ids).not.toContain(placeId);
+    expect(data.ids).toContain(placeWithAmenitiesId);
+  });
+
+  test("Add non-existent place to favorites returns 404", async () => {
+    const res = await authenticatedApi("/api/favorites", authToken, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        place_id: "00000000-0000-0000-0000-000000000000",
+      }),
+    });
+    await expectStatus(res, 404);
+  });
+
+  test("Get favorites without authentication returns 401", async () => {
+    const res = await api("/api/favorites");
+    await expectStatus(res, 401);
+  });
+
+  test("Get favorite IDs without authentication returns 401", async () => {
+    const res = await api("/api/favorites/ids");
+    await expectStatus(res, 401);
+  });
+
+  test("Add to favorites without authentication returns 401", async () => {
+    const res = await api("/api/favorites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        place_id: placeId,
+      }),
+    });
+    await expectStatus(res, 401);
+  });
+
+  test("Remove from favorites without authentication returns 401", async () => {
+    const res = await api(`/api/favorites/${placeId}`, {
+      method: "DELETE",
+    });
+    await expectStatus(res, 401);
   });
 });
